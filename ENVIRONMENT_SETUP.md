@@ -1,57 +1,57 @@
 # Environment Setup
 
-This document records the currently recommended runtime environment and how to go from a clean NVIDIA NGC container to a working local setup.
+This document records the recommended runtime environment for the current release and explains how to configure a clean NVIDIA NGC container into a working setup.
 
-It is scoped to inference and local frontend/backend development for the current repository. It does not cover the full training environment.
-
-[中文](./ENVIRONMENT_SETUP_zh.md)
+It corresponds to the current repository codebase and only covers the dependencies needed for frontend/backend inference and local development. It does not cover the training environment.
 
 > [!TIP]
-> There are currently two supported setup paths:
+> There are currently two supported environment setup paths:
 >
 > 1. Build an environment image from the repository-level [Dockerfile](./Dockerfile).
-> 2. Follow this document step by step to configure a clean NGC container manually.
+> 2. Follow the steps in this document to manually install dependencies inside a clean NGC container.
 
 ---
 
 The rest of this document describes the manual setup path.
 
-## 1. Base Image
+## 1. Base Environment
 
-Start from the NVIDIA NGC PyTorch container:
+The current recommended starting point is the NVIDIA NGC PyTorch container:
 
 - `25.02-py3`
 
-This base image already provides the core CUDA / PyTorch / Transformer Engine stack used by the project, so it is not recommended to reinstall `torch` or `transformer_engine` on top of it.
+This base image already includes the core CUDA / PyTorch / Transformer Engine stack used by the project, so it is not recommended to reinstall `torch` or `transformer_engine` on top of it.
 
-## 2. Project Location
+## 2. Project Directory
 
-The repository can live in any directory. There is no required absolute path.
+The project code can be placed anywhere. All paths below are described relative to the repository root.
 
 For example:
 
 ```bash
-git clone <your-repo-url>
-cd Khala-Music-Generation
+git clone https://github.com/Khala-Music-AI/Khala.git
+
+cd Khala
 ```
 
-All paths in this document are described relative to the repository root, not to a fixed host-machine location.
+The rest of this document assumes repository-relative paths rather than any fixed host-machine directory.
 
 ## 3. Python Dependencies
 
-The current extra Python dependencies are listed in [requirements.txt](./requirements.txt).
+The additional Python dependencies for the current project are listed in [requirements.txt](./requirements.txt) at the repository root.
 
 Install them inside the NGC container with:
 
 ```bash
-python3 -m pip install --break-system-packages -r requirements.txt
+python3 -m pip install --break-system-packages -r requirements.txt \
+  -i https://pypi.tuna.tsinghua.edu.cn/simple
 ```
 
 ## 4. System Dependencies
 
 ### 4.1 `ffmpeg`
 
-The backend exports MP3 files from generated WAV files, so `ffmpeg` is required:
+The backend calls `ffmpeg` to export MP3 files after generating WAV files, so it must be installed:
 
 ```bash
 apt update
@@ -60,7 +60,7 @@ apt install -y ffmpeg
 
 ### 4.2 SSH (optional)
 
-If you want to SSH directly into the container instead of entering the host machine first and then using `docker exec`, you can also install and run an SSH server.
+If you want to SSH directly into the container instead of first entering the host machine and then using `docker exec`, you can additionally install and start an SSH service.
 
 For example:
 
@@ -70,13 +70,13 @@ apt install -y openssh-server
 mkdir -p /var/run/sshd
 ```
 
-This is optional and intended for development convenience.
+This is not required to run the project. It is only a convenience for development and remote debugging.
 
 ## 5. Node.js
 
 The frontend currently runs through the Vite development server, so Node.js is required.
 
-The version verified with the current project is:
+The currently verified version is:
 
 - `node-v24.15.0-linux-x64`
 
@@ -94,7 +94,7 @@ ln -sf /usr/local/lib/nodejs/node-v24.15.0-linux-x64/bin/corepack /usr/local/bin
 
 Notes:
 
-- The download URL may change as Node.js releases newer versions. Check the official Node.js distribution page if needed.
+- The download URL above may change as Node.js versions are updated. In practice, please use the latest official Node.js distribution URL if needed.
 
 Verify the installation:
 
@@ -106,7 +106,7 @@ npx -v
 
 ## 6. Frontend Dependencies
 
-From the repository root:
+From the repository root, run:
 
 ```bash
 cd frontend
@@ -121,12 +121,12 @@ npm run dev
 
 ## 7. Model File Layout
 
-The current code resolves tokenizer, decoder config, and checkpoints by repository-relative paths.
+The current code resolves tokenizer files, decoder configuration, and checkpoints through repository-relative paths.
 
-Make sure the repository layout looks like this:
+Make sure the directory structure looks like this:
 
 ```text
-Khala-Music-Generation/
+Khala/
 ├── backend/
 ├── frontend/
 ├── core/
@@ -142,7 +142,7 @@ Khala-Music-Generation/
 Important notes:
 
 - The model files and directory layout inside `checkpoints/` must match the structure expected by the current code.
-- The repository can live in any directory as long as the internal project structure stays the same.
+- The repository itself can live in any directory as long as the internal project structure stays the same.
 
 ## 8. Running the Project
 
@@ -156,7 +156,7 @@ bash run_backend.sh
 By default this starts:
 
 - 1 API process
-- one worker process per entry in `GPU_IDS`
+- as many worker processes as specified by `GPU_IDS`
 
 Stop all backend processes with:
 
@@ -173,12 +173,12 @@ npm run dev
 
 By default:
 
-- the frontend dev server listens on `7869`
+- the frontend development server listens on `7869`
 - the backend API listens on `8889`
 
-## 9. Example Docker Run Command
+## 9. Advanced Docker Run Example
 
-If you want to mount a host workspace into the container, a typical command looks like this:
+If you want to mount a host-side project directory into the container, you can use a command like this:
 
 ```bash
 docker run -d \
@@ -192,8 +192,8 @@ docker run -d \
   /usr/sbin/sshd -D
 ```
 
-Adjust the following for your own setup:
+Adjust the following for your own environment:
 
 - host mount path
 - image name
-- whether SSH is enabled
+- whether SSH should be enabled

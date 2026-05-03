@@ -24,13 +24,14 @@
 
 ## 2. 项目目录
 
-项目代码可以放在任意位置，不要求固定路径。
+项目代码可以放在任意位置，后续路径均默认相对于仓库根目录。
 
 例如：
 
 ```bash
-git clone <your-repo-url>
-cd Khala-Music-Generation
+git clone https://github.com/Khala-Music-AI/Khala.git
+
+cd Khala
 ```
 
 后续文档中的路径均默认相对于仓库根目录，而不是固定写死某个宿主机目录。
@@ -125,7 +126,7 @@ npm run dev
 请确保目录结构如下：
 
 ```text
-Khala-Music-Generation/
+Khala/
 ├── backend/
 ├── frontend/
 ├── core/
@@ -175,7 +176,7 @@ npm run dev
 - 前端开发服务器监听 `7869`
 - 后端 API 监听 `8889`
 
-## 9. Docker 启动示例
+## 9. Docker 高级启动示例
 
 如果你希望把宿主机上的项目目录挂载进容器，可以使用类似这样的命令：
 

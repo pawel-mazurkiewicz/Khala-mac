@@ -10,19 +10,11 @@ English | [中文](./README_zh.md)
 
 <div align="center">
 
-Khala is an open-source system for high-fidelity song generation, providing a complete text-to-audio inference pipeline with a frontend interface, backend orchestration, multi-stage model inference, and reproducible runtime environments.
+<img alt="Demo" src="https://img.shields.io/badge/%F0%9F%8E%A7%20Demo-Coming%20Soon-gray">
 
-</div>
+<img alt="Paper" src="https://img.shields.io/badge/%F0%9F%93%84%20Paper-Coming%20Soon-gray">
 
-<div align="center">
-
-<a href="<demo-page-link>">
-  <img alt="Demo" src="https://img.shields.io/badge/%F0%9F%8E%A7%20Demo-Listen%20Now-2ea44f">
-</a>
-<a href="<arxiv-link>">
-  <img alt="Paper" src="https://img.shields.io/badge/%F0%9F%93%84%20Paper-arXiv-b31b1b">
-</a>
-<a href="<huggingface-model-link>">
+<a href="https://huggingface.co/liujiafeng/Khala-MusicGeneration-v1.0">
   <img alt="Model Weights" src="https://img.shields.io/badge/%F0%9F%A4%97%20Model-Hugging%20Face-ffc107">
 </a>
 <a href="./ENVIRONMENT_SETUP.md">
@@ -34,74 +26,129 @@ Khala is an open-source system for high-fidelity song generation, providing a co
 
 </div>
 
-## ✨ What Is Khala
+## ✨ What Is Khala?
 
-Khala aims to provide a complete, runnable, and extensible song generation system rather than a collection of isolated inference scripts. The system is built around a unified acoustic-token route, progressively generating coarse structure and fine acoustic detail within the same discrete audio representation space.
+Khala is an open-source system for high-fidelity song generation, capable of generating complete songs from text descriptions and lyric conditions. Unlike approaches built around semantic tokens, diffusion models, or multi-stage audio generation stacks, Khala follows a unified acoustic-token route and generates both coarse musical structure and fine acoustic detail within the same discrete audio representation space.
 
-The current release includes:
+The core characteristics of Khala include:
 
-- A Vite + React frontend for prompt, lyrics, and generation controls.
-- A FastAPI-based API layer for request handling, queue management, worker scheduling, and result delivery.
-- A single-GPU inference worker that loads the tokenizer, Megatron backbone, super-resolution model, and decoder to run the full audio generation pipeline.
-- A runtime setup organized around NVIDIA NGC containers for reproducibility and future deployment.
-
-The current project focuses on:
-
-- Song-level music generation rather than short clips or loop-style accompaniment.
-- Controllable generation conditioned on text descriptions and lyrics.
-- Coarse-to-fine generation based on a 64-layer RVQ acoustic token hierarchy.
-- A multi-stage inference pipeline built from backbone, super-resolution, and decoder stages.
-- Delivering a complete runnable system instead of a standalone model script.
+- **Full-song generation**: designed for complete song generation rather than short clips or loop-style accompaniment.
+- **Text and lyric control**: supports natural-language prompts and lyrics to control style, mood, vocals, and content.
+- **Unified acoustic-token representation**: built on a 64-layer RVQ acoustic token hierarchy that represents audio as coarse-to-fine discrete acoustic tokens.
+- **Two-stage generation pipeline**: a backbone first generates coarse acoustic tokens, then a super-resolution model completes higher RVQ token layers, and finally a decoder reconstructs the waveform.
+- **Complete system implementation**: includes a frontend UI, a FastAPI backend dispatcher, a single-GPU inference worker, model loading, and the end-to-end audio generation path rather than just standalone inference scripts.
 
 ## 📰 News
 
-- `[2026-04-30]` The demo page and paper page are now online.
-- `[2026-04-30]` The current codebase, environment docs, and Dockerfile have been cleaned up for release.
-- `[Coming Soon]` Prebuilt Docker images will be published on GHCR.
-- `[Coming Soon]` More audio samples and model variants will be added.
+### ✅ Updated
+
+- `[2026-05-01]` The codebase, environment documentation, and Dockerfile have been cleaned up for release.
+- `[Coming Soon]` The demo page and arXiv paper will be released soon.
+
+### ⏳ TODOs
+
+- `[Coming Soon]` A full deployment guide for musicians and beginner users.
+- `[Coming Soon]` Multi-node and multi-GPU inference deployment support.
 
 ### 🖥️ Web UI
-
+#### Prompt Mode
 ![Khala Frontend Demo 1](./assets/front_1.png)
-
+#### Tag Mode
 ![Khala Frontend Demo 2](./assets/front_2.png)
 
 ### 🎧 Audio Samples
 
-The full demo page is available at:
+The audio demo page is still under construction and will be released soon.
 
-- [Listen to Khala Demos](<demo-page-link>)
+## ✅ Runtime Requirements
+
+The current release is mainly intended for researchers and developers who are already familiar with GPU servers.
+
+- NVIDIA GPU, with 24GB or more VRAM recommended for the full inference pipeline, such as an RTX 4090 or a higher-tier GPU.
+- Docker and NVIDIA Container Toolkit.
+- A CUDA-compatible NVIDIA driver.
+- Python and Node.js are already included in the prebuilt image.
+- Model weights need to be downloaded into the `checkpoints/` directory at the repository root.
 
 ## 🚀 Quick Start
 
-The recommended startup path is:
+This section is intended for researchers and developers who are already comfortable with basic Docker and CUDA workflows, and provides the shortest path to running the system.
 
-1. Clone this repository.
-2. Prepare the runtime environment.
-3. Download the model checkpoints.
-4. Place the model files in the expected project locations.
-5. Launch the backend and frontend.
+If you want to configure the environment step by step from a clean NGC container, please read:
 
-Two environment setup paths are currently supported:
+- [ENVIRONMENT_SETUP.md](./ENVIRONMENT_SETUP.md)
+- [ENVIRONMENT_SETUP_zh.md](./ENVIRONMENT_SETUP_zh.md)
 
-- Use a prebuilt Docker image.
-- Use the repository-level [Dockerfile](./Dockerfile) or the [environment setup guide](./ENVIRONMENT_SETUP.md) to prepare the environment manually.
+If you want to understand the backend structure and runtime logic, please read:
 
-Detailed documentation:
+- [backend/README_backend.md](./backend/README_backend.md)
+- [backend/README_backend_zh.md](./backend/README_backend_zh.md)
 
-- Environment setup:
-  - [ENVIRONMENT_SETUP.md](./ENVIRONMENT_SETUP.md)
-  - [ENVIRONMENT_SETUP_zh.md](./ENVIRONMENT_SETUP_zh.md)
-- Backend documentation:
-  - [backend/README_backend.md](./backend/README_backend.md)
-  - [backend/README_backend_zh.md](./backend/README_backend_zh.md)
+### 1. Prepare the runtime environment
+The currently available prebuilt image is:
+```bash
+docker pull ghcr.io/davidliujiafeng/khala-env:ngc25.02-node24
+
+docker run --gpus all -it --rm \
+  --name khala \
+  -p 7869:7869 \
+  -p 8889:8889 \
+  ghcr.io/davidliujiafeng/khala-env:ngc25.02-node24
+```
+> Note: the command above uses `--rm`, so files created inside the container will be removed after the container exits. If you want a long-lived development container or want to keep downloaded model weights, use a mounted directory or remove `--rm`.
+
+### 2. Clone the repository
+After entering the container, run:
+```bash
+cd /workspace
+git clone https://github.com/Khala-Music-AI/Khala.git
+cd Khala
+```
+
+### 3. Download the model checkpoints
+
+Model repository:
+
+- [Hugging Face: liujiafeng/Khala-MusicGeneration-v1.0](https://huggingface.co/liujiafeng/Khala-MusicGeneration-v1.0)
+
+From the repository root, run:
+
+```bash
+mkdir -p checkpoints
+hf download liujiafeng/Khala-MusicGeneration-v1.0 --local-dir checkpoints
+```
+
+This command downloads the model repository contents into the local `checkpoints/` directory.
+
+### 4. Start the backend
+
+```bash
+cd /workspace/Khala/backend
+bash run_backend.sh
+```
+
+### 5. Start the frontend
+
+In another terminal, run:
+
+```bash
+cd /workspace/Khala/frontend
+npm install
+npm run dev
+```
+
+### 6. Open the web UI
+
+Default URL:
+
+- [http://127.0.0.1:7869](http://127.0.0.1:7869)
 
 ## 🧠 System Overview
 
 The current system has three layers:
 
 - Frontend: accepts prompts, lyrics, and generation settings, and displays results.
-- API dispatcher: receives requests, creates jobs, manages the queue, and dispatches work to idle workers.
+- API dispatcher: receives requests, creates jobs, queues them, and dispatches them to idle workers.
 - Inference worker: runs backbone, super-resolution, and decoder inference.
 
 The request path is:
@@ -120,16 +167,16 @@ flowchart LR
 
 ## 🔗 Project Resources
 
-- Demo page: `<demo-page-link>`
-- arXiv paper: `<arxiv-link>`
-- Model weights: `<huggingface-model-link>`
+- Demo page: Coming Soon
+- arXiv paper: Coming Soon
+- Model weights: `https://huggingface.co/liujiafeng/Khala-MusicGeneration-v1.0`
 - Environment setup: [ENVIRONMENT_SETUP.md](./ENVIRONMENT_SETUP.md)
 - Backend docs: [backend/README_backend.md](./backend/README_backend.md)
 
 ## 🗂 Repository Structure
 
 ```text
-Khala-Music-Generation/
+Khala/
 ├── backend/
 ├── frontend/
 ├── core/
@@ -144,7 +191,7 @@ Khala-Music-Generation/
 
 Main directories:
 
-- `frontend/`: frontend UI and Vite project.
+- `frontend/`: frontend pages and the Vite project.
 - `backend/`: backend API, worker, and launcher scripts.
 - `core/`: project-specific core modules.
 - `models/`: Megatron, decoder, and tokenizer related code.
@@ -153,11 +200,11 @@ Main directories:
 
 ## 📚 Citation
 
-Citation information will be added later.
+If this project is helpful to your research or development work, you are welcome to cite our paper. The final BibTeX information will be added after the paper is public.
 
 ## 🙏 Acknowledgements
 
-This project builds on a number of excellent open-source projects and tools, including but not limited to:
+The current implementation builds on a number of excellent open-source projects and tools, including but not limited to:
 
 - NVIDIA NGC
 - Megatron / Megatron Core
@@ -167,4 +214,4 @@ This project builds on a number of excellent open-source projects and tools, inc
 
 ## 📜 License
 
-License information will be added later.
+License information will be added later. Before the final license is published, please do not use the model weights for commercial purposes.
