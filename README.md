@@ -215,3 +215,11 @@ The current implementation builds on a number of excellent open-source projects 
 ## 📜 License
 
 License information will be added later. Before the final license is published, please do not use the model weights for commercial purposes.
+
+## 💬 Contact
+
+Feel free to join the WeChat group for discussion, usage questions, and future updates:
+
+<div align="center">
+  <img src="./assets/wechat_group.jpg" width="320" alt="Khala WeChat Group QR Code" />
+</div>

@@ -216,3 +216,11 @@ Khala/
 ## 📜 开源协议
 
 开源协议信息将在后续补充。在正式协议发布前，请勿将模型权重用于商业用途。
+
+## 💬 Contact
+
+欢迎扫码加入微信群交流项目进展、使用问题与后续更新：
+
+<div align="center">
+  <img src="./assets/wechat_group.jpg" width="320" alt="Khala WeChat Group QR Code" />
+</div>
