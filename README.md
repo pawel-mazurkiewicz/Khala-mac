@@ -217,14 +217,6 @@ The current implementation builds on a number of excellent open-source projects 
 
 The model weights are currently intended to be released under `CC BY-NC 4.0` (Creative Commons Attribution-NonCommercial 4.0 International).
 
-This means:
-
-- downloading, sharing, and modifying the model weights is allowed
-- attribution to the original authors is required
-- commercial use is not allowed
-
-If a more detailed model license or additional usage terms are added later, they will be updated in both this repository and the Hugging Face model page.
-
 ## 💬 Contact
 
 Feel free to join the WeChat group for discussion, usage questions, and future updates:

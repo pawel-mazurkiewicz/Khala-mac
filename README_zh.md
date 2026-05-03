@@ -218,14 +218,6 @@ Khala/
 
 当前模型权重计划采用 `CC BY-NC 4.0`（Creative Commons Attribution-NonCommercial 4.0 International）许可协议发布。
 
-这意味着：
-
-- 允许下载、分享与修改模型权重
-- 必须保留原作者署名
-- 不允许商业使用
-
-若后续有更细化的模型使用协议或补充条款，将在仓库与 Hugging Face 页面同步更新。
-
 ## 💬 Contact
 
 欢迎扫码加入微信群交流项目进展、使用问题与后续更新：
