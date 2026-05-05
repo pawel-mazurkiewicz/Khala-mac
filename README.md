@@ -12,7 +12,9 @@ English | [中文](./README_zh.md)
 
 <img alt="Demo" src="https://img.shields.io/badge/%F0%9F%8E%A7%20Demo-Coming%20Soon-gray">
 
-<img alt="Paper" src="https://img.shields.io/badge/%F0%9F%93%84%20Paper-Coming%20Soon-gray">
+<a href="https://arxiv.org/abs/2605.01790">
+  <img alt="Paper" src="https://img.shields.io/badge/%F0%9F%93%84%20Paper-arXiv-b31b1b">
+</a>
 
 <a href="https://huggingface.co/liujiafeng/Khala-MusicGeneration-v1.0">
   <img alt="Model Weights" src="https://img.shields.io/badge/%F0%9F%A4%97%20Model-Hugging%20Face-ffc107">
@@ -42,8 +44,8 @@ The core characteristics of Khala include:
 
 ### ✅ Updated
 
+- `[2026-05-05]` The arXiv paper is now available: [Khala: Scaling Acoustic Token Language Models Toward High-Fidelity Music Generation](https://arxiv.org/abs/2605.01790)
 - `[2026-05-01]` The codebase, environment documentation, and Dockerfile have been cleaned up for release.
-- `[Coming Soon]` The demo page and arXiv paper will be released soon.
 
 ### ⏳ TODOs
 
@@ -169,7 +171,7 @@ flowchart LR
 ## 🔗 Project Resources
 
 - Demo page: Coming Soon
-- arXiv paper: Coming Soon
+- arXiv paper: [Khala: Scaling Acoustic Token Language Models Toward High-Fidelity Music Generation](https://arxiv.org/abs/2605.01790)
 - Model weights: `https://huggingface.co/liujiafeng/Khala-MusicGeneration-v1.0`
 - Environment setup: [ENVIRONMENT_SETUP.md](./ENVIRONMENT_SETUP.md)
 - Backend docs: [backend/README_backend.md](./backend/README_backend.md)
@@ -201,7 +203,11 @@ Main directories:
 
 ## 📚 Citation
 
-If this project is helpful to your research or development work, you are welcome to cite our paper. The final BibTeX information will be added after the paper is public.
+If this project is helpful to your research or development work, you are welcome to cite our paper:
+
+- [Khala: Scaling Acoustic Token Language Models Toward High-Fidelity Music Generation](https://arxiv.org/abs/2605.01790)
+
+The final BibTeX information will be added later to both the paper page and the repository documentation.
 
 ## 🙏 Acknowledgements
 

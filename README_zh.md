@@ -12,7 +12,9 @@
 
 <img alt="Demo" src="https://img.shields.io/badge/%F0%9F%8E%A7%20Demo-Coming%20Soon-gray">
 
-<img alt="Paper" src="https://img.shields.io/badge/%F0%9F%93%84%20Paper-Coming%20Soon-gray">
+<a href="https://arxiv.org/abs/2605.01790">
+  <img alt="Paper" src="https://img.shields.io/badge/%F0%9F%93%84%20Paper-arXiv-b31b1b">
+</a>
 
 <a href="https://huggingface.co/liujiafeng/Khala-MusicGeneration-v1.0">
   <img alt="Model Weights" src="https://img.shields.io/badge/%F0%9F%A4%97%20Model-Hugging%20Face-ffc107">
@@ -42,8 +44,8 @@ Khala 的核心特点包括：
 
 ### ✅ 已更新
 
+- `[2026-05-05]` arXiv 论文已上线：[Khala: Scaling Acoustic Token Language Models Toward High-Fidelity Music Generation](https://arxiv.org/abs/2605.01790)
 - `[2026-05-01]` 代码、环境配置文档与 Dockerfile 已整理完成。
-- `[Coming Soon]` Demo 页面与 arXiv 论文将于近期发布
 
 ### ⏳ TODOs
 
@@ -169,7 +171,7 @@ flowchart LR
 ## 🔗 相关资源
 
 - Demo 页面：Coming Soon
-- arXiv 论文：Coming Soon
+- arXiv 论文：[Khala: Scaling Acoustic Token Language Models Toward High-Fidelity Music Generation](https://arxiv.org/abs/2605.01790)
 - 模型权重：`https://huggingface.co/liujiafeng/Khala-MusicGeneration-v1.0`
 - 环境配置：[ENVIRONMENT_SETUP_zh.md](./ENVIRONMENT_SETUP_zh.md)
 - 后端说明：[backend/README_backend_zh.md](./backend/README_backend_zh.md)
@@ -202,7 +204,11 @@ Khala/
 
 ## 📚 引用方式
 
-如果本项目对你的研究或开发有帮助，欢迎引用我们的论文。正式 BibTeX 信息将在论文公开后补充。
+如果本项目对你的研究或开发有帮助，欢迎引用我们的论文：
+
+- [Khala: Scaling Acoustic Token Language Models Toward High-Fidelity Music Generation](https://arxiv.org/abs/2605.01790)
+
+正式 BibTeX 信息将在后续补充到论文页面与仓库文档中。
 
 ## 🙏 致谢
 
