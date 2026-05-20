@@ -1,0 +1,22 @@
+# Apple Silicon / NVIDIA-agnostic runtime dependencies for Khala.
+#
+# Notes:
+# - This file replaces requirements.txt for users running on Apple Silicon
+#   (or any non-NVIDIA host). It deliberately omits Megatron, TransformerEngine,
+#   FlashAttention, apex, and other CUDA-only stacks.
+# - Pin torch >= 2.4 to get a stable MPS backend (SDPA, bf16, weight_norm).
+# - lightning is not strictly required by the decoder if DacRVQ is
+#   re-parented to nn.Module; kept here for drop-in compatibility with the
+#   upstream code that subclasses L.LightningModule.
+
+torch>=2.4
+numpy
+soundfile
+einops
+omegaconf
+lightning
+fastapi
+uvicorn
+httpx
+transformers
+pydantic

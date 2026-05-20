@@ -55,6 +55,16 @@ prepend_sys_path(PROJECT_ROOT)
 prepend_sys_path(MEGATRON_ROOT)
 prepend_sys_path(DECODER_ROOT)
 
+# Device-agnostic runtime helpers. Resolves to cuda when available, mps on
+# Apple Silicon, cpu otherwise. Honors KHALA_DEVICE env override.
+from core.device_utils import (  # noqa: E402  (must follow sys.path setup)
+    clear_memory as _device_clear_memory,
+    get_device as _get_device,
+    synchronize as _device_synchronize,
+)
+
+DEVICE = _get_device()
+
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 os.makedirs(LOG_DIR, exist_ok=True)
 
@@ -241,10 +251,10 @@ def start_status_writer(path: str) -> tuple[threading.Event, threading.Thread] |
 
 
 def clear_cuda_memory() -> None:
-    gc.collect()
-    torch.cuda.empty_cache()
-    torch.cuda.synchronize()
-    torch.cuda.ipc_collect()
+    # Name kept for backward-compat with existing call sites. Internally
+    # routes through device_utils, which is a no-op on CPU and uses
+    # torch.mps.* on Apple Silicon.
+    _device_clear_memory(DEVICE)
 
 
 def free_resource(key: str) -> None:
@@ -523,14 +533,14 @@ def load_decoder() -> None:
     config = OmegaConf.load(DECODER_CONFIG_PATH)
     decoder = DacRVQ(config)
 
-    checkpoint = torch.load(DECODER_CHECKPOINT_PATH, map_location="cuda", weights_only=False)
+    checkpoint = torch.load(DECODER_CHECKPOINT_PATH, map_location=DEVICE, weights_only=False)
     generator_state_dict = {
         key[len("generator."):]: value
         for key, value in checkpoint["state_dict"].items()
         if key.startswith("generator.")
     }
     decoder.load_state_dict(generator_state_dict)
-    decoder.to("cuda")
+    decoder.to(DEVICE)
     decoder.eval()
 
     RESOURCES["decoder"] = decoder
@@ -875,10 +885,10 @@ def generate_superres(superres_prompt_ids: list[int], backbone_tokens: list[int]
     )
 
     input_dict = prepare_superres_inputs(text_tokens, audio_tokens, max_seq_len)
-    tokens = input_dict["tokens"].to("cuda")
-    attention_mask = input_dict["attention_mask"].to("cuda")
-    loss_mask = input_dict["loss_mask"].to("cuda")
-    position_ids = input_dict["position_ids"].to("cuda")
+    tokens = input_dict["tokens"].to(DEVICE)
+    attention_mask = input_dict["attention_mask"].to(DEVICE)
+    loss_mask = input_dict["loss_mask"].to(DEVICE)
+    position_ids = input_dict["position_ids"].to(DEVICE)
 
     start_time = time.perf_counter()
     audio_output = generate_superres_manual_projection(
@@ -891,7 +901,7 @@ def generate_superres(superres_prompt_ids: list[int], backbone_tokens: list[int]
         audio_len,
         top_k,
     )
-    torch.cuda.synchronize()
+    _device_synchronize(DEVICE)
     elapsed_sec = time.perf_counter() - start_time
     print(f"[Worker] Superres finished in {elapsed_sec:.3f}s using manual_projection.")
 
