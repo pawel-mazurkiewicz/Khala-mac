@@ -69,6 +69,31 @@ def apply_rotary(q, k, cos, sin):
     return q, k
 
 
+class KhalaKVCache:
+    """Per-layer (k, v) cache for incremental causal decode. k/v are post-RoPE,
+    pre-GQA-expansion, shaped [B, n_kv, S, head_dim]."""
+
+    def __init__(self, n_layers: int):
+        self.k: list[torch.Tensor | None] = [None] * n_layers
+        self.v: list[torch.Tensor | None] = [None] * n_layers
+
+    def reset(self) -> None:
+        for i in range(len(self.k)):
+            self.k[i] = None
+            self.v[i] = None
+
+    def length(self) -> int:
+        return 0 if self.k[0] is None else self.k[0].shape[2]
+
+    def append(self, i: int, k: torch.Tensor, v: torch.Tensor):
+        if self.k[i] is None:
+            self.k[i], self.v[i] = k, v
+        else:
+            self.k[i] = torch.cat([self.k[i], k], dim=2)
+            self.v[i] = torch.cat([self.v[i], v], dim=2)
+        return self.k[i], self.v[i]
+
+
 class KhalaAttention(nn.Module):
     def __init__(self, config: KhalaConfig):
         super().__init__()
@@ -82,7 +107,8 @@ class KhalaAttention(nn.Module):
         self.v_proj = nn.Linear(config.hidden_size, config.kv_dim, bias=bias)
         self.o_proj = nn.Linear(config.q_dim, config.hidden_size, bias=bias)
 
-    def forward(self, x, cos, sin, causal: bool = True):
+    def forward(self, x, cos, sin, *, causal: bool = True, attn_mask=None,
+                kv_cache=None, layer_idx: int | None = None):
         B, S, _ = x.shape
         q = self.q_proj(x).view(B, S, self.n_heads, self.head_dim).transpose(1, 2)
         k = self.k_proj(x).view(B, S, self.n_kv, self.head_dim).transpose(1, 2)
@@ -90,14 +116,23 @@ class KhalaAttention(nn.Module):
 
         q, k = apply_rotary(q, k, cos, sin)
 
+        if kv_cache is not None:
+            k, v = kv_cache.append(layer_idx, k, v)  # full cached k/v (post-RoPE)
+
         # GQA: expand KV heads to match Q heads
         rep = self.n_heads // self.n_kv
         k = k.repeat_interleave(rep, dim=1)
         v = v.repeat_interleave(rep, dim=1)
 
-        # Backbone is causal; super-res is non-causal (packed bidirectional).
-        # TODO(phase-3): KV-cache for incremental decode + padding-mask support.
-        out = F.scaled_dot_product_attention(q, k, v, is_causal=causal)
+        if attn_mask is not None:
+            # Super-res padding mask [B,1,1,S] (True=pad). SDPA bool mask: True=attend.
+            out = F.scaled_dot_product_attention(q, k, v, attn_mask=~attn_mask, is_causal=False)
+        elif kv_cache is not None:
+            # Prefill chunk (S>1) is causal; a single decode step attends all past keys.
+            out = F.scaled_dot_product_attention(q, k, v, is_causal=(q.shape[2] > 1))
+        else:
+            out = F.scaled_dot_product_attention(q, k, v, is_causal=causal)
+
         out = out.transpose(1, 2).reshape(B, S, self.n_heads * self.head_dim)
         return self.o_proj(out)
 
@@ -130,8 +165,10 @@ class KhalaDecoderLayer(nn.Module):
         self.post_attn_norm = RMSNorm(config.hidden_size, config.norm_eps)
         self.mlp = KhalaMLP(config)
 
-    def forward(self, x, cos, sin, causal: bool = True):
-        x = x + self.attn(self.input_norm(x), cos, sin, causal=causal)
+    def forward(self, x, cos, sin, *, causal: bool = True, attn_mask=None,
+                kv_cache=None, layer_idx: int | None = None):
+        x = x + self.attn(self.input_norm(x), cos, sin, causal=causal,
+                          attn_mask=attn_mask, kv_cache=kv_cache, layer_idx=layer_idx)
         x = x + self.mlp(self.post_attn_norm(x))
         return x
 
@@ -146,30 +183,46 @@ class KhalaModel(nn.Module):
         self.lm_head = nn.Linear(config.hidden_size, config.padded_vocab_size, bias=False)
         self._rope_cache: tuple | None = None
 
-    def _rope(self, seq_len: int, device, dtype):
-        if self._rope_cache is None or self._rope_cache[0].shape[0] < seq_len \
-                or self._rope_cache[0].device != device or self._rope_cache[0].dtype != dtype:
+    def _rope_at(self, positions: torch.Tensor, device, dtype):
+        """Return (cos, sin) gathered at absolute `positions` [S] -> each [S, head_dim]."""
+        need = int(positions.max().item()) + 1
+        c = self._rope_cache
+        if (c is None or c[0].shape[0] < need
+                or c[0].device != device or c[0].dtype != dtype):
             self._rope_cache = build_rope_cache(
-                max(seq_len, 1), self.config.head_dim, self.config.rope_theta, device, dtype
+                max(need, 1), self.config.head_dim, self.config.rope_theta, device, dtype
             )
         cos, sin = self._rope_cache
-        return cos[:seq_len], sin[:seq_len]
+        return cos[positions], sin[positions]
 
-    def forward_hidden_states(self, input_ids: torch.Tensor, causal: bool = True) -> torch.Tensor:
+    def forward_hidden_states(self, input_ids: torch.Tensor, *, causal: bool = True,
+                              position_ids: torch.Tensor | None = None,
+                              attention_mask: torch.Tensor | None = None,
+                              kv_cache=None) -> torch.Tensor:
         """Embedding -> transformer stack -> final norm. Returns [B, S, H].
 
-        `causal=True` for the backbone; the super-resolution model runs non-causal
-        (packed bidirectional) — pass causal=False. This is the hook the super-res
-        path projects from (cf. the worker's `generate_superres_manual_projection`).
-        Phase-3 will add the token-range slice + sampling on top.
+        Defaults (all optional args None/True) reproduce the Phase-1 forward exactly.
+        - `causal=False` + `attention_mask` [B,1,1,S] (True=pad): super-res non-causal path.
+        - `kv_cache`: incremental causal decode; RoPE positions resume at cache length.
         """
         h = self.embed(input_ids)
         S = h.shape[1]
-        cos, sin = self._rope(S, h.device, h.dtype)
-        for layer in self.layers:
-            h = layer(h, cos, sin, causal=causal)
+        start = kv_cache.length() if kv_cache is not None else 0
+        if position_ids is None:
+            positions = torch.arange(start, start + S, device=h.device)
+        else:
+            positions = position_ids[0] if position_ids.dim() == 2 else position_ids
+        cos, sin = self._rope_at(positions, h.device, h.dtype)
+        for i, layer in enumerate(self.layers):
+            h = layer(h, cos, sin, causal=causal, attn_mask=attention_mask,
+                      kv_cache=kv_cache, layer_idx=i)
         return self.norm(h)
 
-    def forward(self, input_ids: torch.Tensor, causal: bool = True) -> torch.Tensor:
+    def forward(self, input_ids: torch.Tensor, *, causal: bool = True,
+                position_ids: torch.Tensor | None = None,
+                attention_mask: torch.Tensor | None = None,
+                kv_cache=None) -> torch.Tensor:
         """Full forward to vocab logits [B, S, padded_vocab_size]."""
-        return self.lm_head(self.forward_hidden_states(input_ids, causal=causal))
+        return self.lm_head(self.forward_hidden_states(
+            input_ids, causal=causal, position_ids=position_ids,
+            attention_mask=attention_mask, kv_cache=kv_cache))
