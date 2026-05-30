@@ -37,6 +37,10 @@ class MultiLayerEmbedding(nn.Module):
         self.weight = nn.Parameter(
             torch.empty(config.padded_vocab_size, config.hidden_size)
         )
+        # Initialize so a fresh (un-checkpointed) model has finite embeddings;
+        # torch.empty leaves uninitialized garbage (occasionally NaN) that would
+        # otherwise poison forward passes for randomly-sampled token ids.
+        nn.init.normal_(self.weight, mean=0.0, std=1.0)
 
     @property
     def vocab_size(self) -> int:

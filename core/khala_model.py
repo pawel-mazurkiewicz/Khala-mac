@@ -82,8 +82,8 @@ class KhalaKVCache:
             self.k[i] = None
             self.v[i] = None
 
-    def length(self) -> int:
-        return 0 if self.k[0] is None else self.k[0].shape[2]
+    def length(self, i: int = 0) -> int:
+        return 0 if self.k[i] is None else self.k[i].shape[2]
 
     def append(self, i: int, k: torch.Tensor, v: torch.Tensor):
         if self.k[i] is None:
@@ -117,6 +117,14 @@ class KhalaAttention(nn.Module):
         q, k = apply_rotary(q, k, cos, sin)
 
         if kv_cache is not None:
+            prior_len = kv_cache.length(layer_idx)
+            # Supported: one prefill chunk (prior_len==0, S>=1) then single-token steps (S==1).
+            # A multi-token chunk into a non-empty cache would mis-attend under the
+            # bottom-right-aligned SDPA causal triangle — reject it rather than fail silently.
+            assert not (S > 1 and prior_len > 0), (
+                "KhalaKVCache: chunked prefill into a non-empty cache is unsupported "
+                f"(S={S}, prior_len={prior_len}); prefill once, then decode one token at a time."
+            )
             k, v = kv_cache.append(layer_idx, k, v)  # full cached k/v (post-RoPE)
 
         # GQA: expand KV heads to match Q heads
