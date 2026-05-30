@@ -29,3 +29,11 @@ checkpoints/
 
 # OS / misc
 *.pid
+
+# CUDA gather artifacts (large)
+_cuda_artifacts/
+scripts/cuda/.env
+
+# Working notes (kept local, not committed)
+SESSION_*_FINDINGS.md
+INVESTIGATION_FACTS.md
