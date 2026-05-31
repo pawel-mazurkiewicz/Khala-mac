@@ -24,12 +24,19 @@ Both are single-point flips once we have a forward fixture to check against.
 """
 from __future__ import annotations
 
+import math
+import os
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
 from .khala_config import KhalaConfig
 from .khala_embedding import MultiLayerEmbedding
+from .device_utils import empty_cache as _empty_cache
+
+# Query-block size for the chunked super-res attention (see _chunked_attention).
+_ATTN_BLOCK = int(os.environ.get("KHALA_ATTN_BLOCK", "512"))
 
 
 class RMSNorm(nn.Module):
@@ -94,6 +101,31 @@ class KhalaKVCache:
         return self.k[i], self.v[i]
 
 
+def _chunked_attention(q, k, v, attend, block: int):
+    """Exact non-causal attention, evaluated as an explicit matmul -> softmax -> matmul
+    chunked over the query dimension in fp32. Never materializes the full [B,H,S,S]
+    score matrix (peak is [B,H,block,S]) and bypasses the fused MPS SDPA kernel, which
+    (a) on the math path materializes O(S^2) scores+probs (~22GB at S=8192 on MPS) and
+    (b) silently corrupts results past ~18k tokens (pytorch#179352 / Pixal3D port).
+
+    q,k,v: [B, H, S, head_dim] (k,v already GQA-expanded to H heads).
+    attend: [B,1,1,S] bool, True = attend (i.e. ~padding_mask), or None.
+    Returns [B, H, S, head_dim] in q's dtype.
+    """
+    scale = 1.0 / math.sqrt(q.shape[-1])
+    S = q.shape[2]
+    out = torch.empty(*q.shape[:-1], v.shape[-1], device=q.device, dtype=q.dtype)
+    for s in range(0, S, block):
+        e = min(s + block, S)
+        scores = (q[:, :, s:e].float() @ k.float().transpose(-2, -1)) * scale  # [B,H,bq,S]
+        if attend is not None:
+            scores = scores.masked_fill(~attend, float("-inf"))
+        out[:, :, s:e] = (scores.softmax(-1) @ v.float()).to(out.dtype)
+        del scores
+        _empty_cache(q.device)
+    return out
+
+
 class KhalaAttention(nn.Module):
     def __init__(self, config: KhalaConfig):
         super().__init__()
@@ -133,8 +165,11 @@ class KhalaAttention(nn.Module):
         v = v.repeat_interleave(rep, dim=1)
 
         if attn_mask is not None:
-            # Super-res padding mask [B,1,1,S] (True=pad). SDPA bool mask: True=attend.
-            out = F.scaled_dot_product_attention(q, k, v, attn_mask=~attn_mask, is_causal=False)
+            # Super-res non-causal path. attn_mask [B,1,1,S] (True=pad) -> attend = ~mask.
+            # Routed through the chunked matmul+softmax instead of SDPA to bound MPS memory
+            # (O(S^2) -> O(block*S), ~22GB -> ~1GB at S=8192) and to dodge the fused MPS
+            # kernel's silent long-sequence corruption (pytorch#179352).
+            out = _chunked_attention(q, k, v, ~attn_mask, _ATTN_BLOCK)
         elif kv_cache is not None:
             # Prefill chunk (S>1) is causal; a single decode step attends all past keys.
             out = F.scaled_dot_product_attention(q, k, v, is_causal=(q.shape[2] > 1))

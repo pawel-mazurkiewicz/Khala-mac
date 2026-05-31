@@ -3,6 +3,7 @@ Run: PYTHONPATH=. .venv-mac/bin/python tests/test_superres.py"""
 from __future__ import annotations
 
 import torch
+import torch.nn.functional as F
 
 from tests._util import artifacts_dir, cos
 from core.khala_config import KhalaConfig
@@ -119,7 +120,30 @@ def test_superres_padding_invariance():
     print("  test_superres_padding_invariance PASS")
 
 
+def test_chunked_attention_matches_sdpa():
+    """The chunked matmul+softmax super-res path must equal monolithic SDPA (exact),
+    across chunk seams and with/without the padding mask. Weightless -> always runs."""
+    from core.khala_model import _chunked_attention
+    torch.manual_seed(0)
+    B, Hn, S, Dh = 1, 8, 50, 64
+    q, k, v = (torch.randn(B, Hn, S, Dh) for _ in range(3))
+    pad = torch.zeros(B, 1, 1, S, dtype=torch.bool)
+    pad[..., -7:] = True
+    attend = ~pad
+    for block in (16, S):                       # block<S exercises multi-chunk seams
+        got = _chunked_attention(q, k, v, attend, block)
+        ref = F.scaled_dot_product_attention(q, k, v, attn_mask=attend, is_causal=False)
+        c = cos(ref, got)
+        assert c > 0.9999, f"chunked masked diverged (block={block}): cos={c}"
+        got_n = _chunked_attention(q, k, v, None, block)
+        ref_n = F.scaled_dot_product_attention(q, k, v, is_causal=False)
+        cn = cos(ref_n, got_n)
+        assert cn > 0.9999, f"chunked maskless diverged (block={block}): cos={cn}"
+    print("  test_chunked_attention_matches_sdpa PASS")
+
+
 if __name__ == "__main__":
+    test_chunked_attention_matches_sdpa()
     test_superres_forward_trace()
     test_superres_projection_runs()
     test_superres_padding_invariance()
