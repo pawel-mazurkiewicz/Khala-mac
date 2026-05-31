@@ -5,11 +5,18 @@ which fed synthetic token ids and therefore produced garbage audio).
 Flow: load_text_tokenizer -> prepare_prompt_ids (BOS/metadata/lyrics/duration/BOA) ->
 generate_backbone -> generate_superres -> decode_to_wav.
 
-Run (MPS auto-selected on Apple Silicon):
+Requires KHALA_BACKEND=vanilla in the environment; device is auto-selected (MPS on
+Apple Silicon, else CPU). Run `--help` for the full argument reference + examples:
+  KHALA_BACKEND=vanilla .venv-mac/bin/python -u tools/generate_vanilla.py --help
+
+Quick start (shortest instrumental Pop clip, ~20s):
   KHALA_BACKEND=vanilla .venv-mac/bin/python -u tools/generate_vanilla.py
-Options:
-  --genre Pop --language Instrumental --duration 0 --lyrics "" --seed 42
-  --top-k-bb 50 --top-k-sr 10 --temperature 1.0 --out NAME.wav
+
+Gotchas worth knowing up front:
+  * --language takes a full NAME, not an ISO code: "English" (not "en"), "Instrumental", ...
+  * --language Instrumental omits the lyrics section, so --lyrics is ignored.
+  * --duration is a length BUCKET index (a reserved token slot), NOT seconds.
+  * The metadata slot is filled by --description, else --tags, else --genre (first non-empty).
 """
 from __future__ import annotations
 
@@ -26,6 +33,41 @@ sys.path.insert(0, str(REPO / "backend"))
 import numpy as np  # noqa: E402
 import torch  # noqa: E402
 
+# Mirror backend_worker.GENRE_OPTIONS / LANGUAGE_OPTIONS (kept local so --help stays
+# instant and doesn't require importing the worker). Language is a closed, trained set;
+# genre is a canonical list but free text is also accepted (it is just metadata text).
+GENRE_CHOICES = [
+    "Pop", "Rock", "R&B", "Hip-Hop", "Electronic", "Jazz", "Classical", "Folk",
+    "Country", "Metal", "Latin", "Reggae", "Blues", "Funk", "Soul", "Indie",
+    "Alternative", "Dance", "Acoustic",
+]
+LANGUAGE_CHOICES = ["Chinese", "English", "Japanese", "Korean", "Cantonese", "Instrumental"]
+
+EXAMPLES = r"""
+examples (every invocation needs KHALA_BACKEND=vanilla in the environment):
+
+  # shortest instrumental Pop clip (~20s), default sampling
+  KHALA_BACKEND=vanilla .venv-mac/bin/python -u tools/generate_vanilla.py
+
+  # instrumental Jazz, longer bucket, custom output name
+  KHALA_BACKEND=vanilla .venv-mac/bin/python -u tools/generate_vanilla.py \
+      --genre Jazz --language Instrumental --duration 4 --out jazz.wav
+
+  # sung English track WITH lyrics ('\n' starts a new line)
+  KHALA_BACKEND=vanilla .venv-mac/bin/python -u tools/generate_vanilla.py \
+      --genre Pop --language English --duration 2 \
+      --lyrics "Walking in the city light\nChasing shadows through the night"
+
+  # drive the style via tags/description instead of --genre
+  KHALA_BACKEND=vanilla .venv-mac/bin/python -u tools/generate_vanilla.py \
+      --language Instrumental --tags "ambient, dreamy" \
+      --description "slow evolving synth pad, no drums"
+
+  # deterministic (greedy) run for reproducible debugging
+  KHALA_BACKEND=vanilla .venv-mac/bin/python -u tools/generate_vanilla.py \
+      --temperature 0 --top-k-bb 1 --seed 123
+"""
+
 
 def _seed_everything(seed: int) -> None:
     torch.manual_seed(seed)
@@ -39,18 +81,62 @@ def _seed_everything(seed: int) -> None:
 
 
 def main() -> int:
-    ap = argparse.ArgumentParser()
-    ap.add_argument("--genre", default="Pop")
-    ap.add_argument("--language", default="Instrumental")
-    ap.add_argument("--tags", default="")
-    ap.add_argument("--description", default="")
-    ap.add_argument("--lyrics", default="")
-    ap.add_argument("--duration", type=int, default=0)
-    ap.add_argument("--top-k-bb", type=int, default=50)
-    ap.add_argument("--top-k-sr", type=int, default=10)
-    ap.add_argument("--temperature", type=float, default=1.0)
-    ap.add_argument("--seed", type=int, default=42)
-    ap.add_argument("--out", default="vanilla_real_prompt.wav")
+    ap = argparse.ArgumentParser(
+        prog="generate_vanilla.py",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        description=(
+            "Generate a track end-to-end with the vanilla (de-Megatron) pipeline on "
+            "MPS/CPU, mirroring the worker's run_generation flow.\n"
+            "Requires KHALA_BACKEND=vanilla; device is auto-selected (MPS on Apple "
+            "Silicon, else CPU)."
+        ),
+        epilog=EXAMPLES,
+    )
+
+    prompt = ap.add_argument_group("prompt content")
+    prompt.add_argument(
+        "--genre", default="Pop", metavar="GENRE",
+        help="Style label; fills the metadata slot when --tags/--description are empty. "
+             "Canonical: " + ", ".join(GENRE_CHOICES) + " (free text also accepted). "
+             "Default: %(default)s")
+    prompt.add_argument(
+        "--language", default="Instrumental", choices=LANGUAGE_CHOICES,
+        help="Full language NAME, not an ISO code (use 'English', not 'en'). "
+             "'Instrumental' omits the lyrics section. Default: %(default)s")
+    prompt.add_argument(
+        "--lyrics", default="", metavar="TEXT",
+        help=r"Lyrics; '\n' separates lines. IGNORED when --language is Instrumental. "
+             "Default: empty")
+    prompt.add_argument(
+        "--tags", default="", metavar="TEXT",
+        help="Free-text style tags (e.g. 'ambient, dreamy'). Overrides --genre in the "
+             "metadata slot. Default: empty")
+    prompt.add_argument(
+        "--description", default="", metavar="TEXT",
+        help="Free-text description. Highest-priority metadata slot (overrides --tags "
+             "and --genre). Default: empty")
+    prompt.add_argument(
+        "--duration", type=int, default=0, metavar="N",
+        help="Length BUCKET index (a reserved duration-token slot), NOT seconds. Larger "
+             "=> longer; N=0 is ~20s in practice, worker/UI default is 2. Default: %(default)s")
+
+    sampling = ap.add_argument_group("sampling")
+    sampling.add_argument(
+        "--top-k-bb", type=int, default=50, metavar="K",
+        help="Backbone top-k. K=1 (or --temperature 0) = greedy. Default: %(default)s")
+    sampling.add_argument(
+        "--top-k-sr", type=int, default=10, metavar="K",
+        help="Super-res top-k. Default: %(default)s")
+    sampling.add_argument(
+        "--temperature", type=float, default=1.0, metavar="T",
+        help="Softmax temperature; 0 = greedy. Default: %(default)s")
+    sampling.add_argument(
+        "--seed", type=int, default=42, metavar="N",
+        help="RNG seed (torch / numpy / mps). Default: %(default)s")
+
+    ap.add_argument(
+        "--out", default="vanilla_real_prompt.wav", metavar="FILE",
+        help="Output WAV filename, written under the worker OUTPUT_DIR. Default: %(default)s")
     args = ap.parse_args()
 
     import backend_worker as bw
