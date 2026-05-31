@@ -37,3 +37,9 @@ scripts/cuda/.env
 # Working notes (kept local, not committed)
 SESSION_*_FINDINGS.md
 INVESTIGATION_FACTS.md
+
+# AI Junk
+.omc
+.agents
+.claude
+.codex
