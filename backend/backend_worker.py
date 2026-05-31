@@ -777,6 +777,25 @@ async def stream_backbone_generate(engine, prompt_ids, sampling_params, estimate
 @torch.inference_mode()
 def generate_backbone(prompt_ids: list[int], top_k: int, temperature: float, duration: int):
     """Run autoregressive backbone decoding and return q0/q1 tokens."""
+    if USE_VANILLA:
+        from core.khala_runtime import sample_backbone
+
+        model = RESOURCES["backbone"]
+        if model is None:
+            raise RuntimeError("Backbone (vanilla) not loaded.")
+        num_tokens = round(TOKENS_PER_MINUTE * (float(duration) + 0.8))
+        start_time = time.perf_counter()
+        generated = sample_backbone(
+            model, prompt_ids, num_tokens=num_tokens,
+            temperature=float(temperature), top_k=int(top_k),
+        )
+        _device_synchronize(DEVICE)
+        print(f"[Worker] Backbone (vanilla) finished in "
+              f"{time.perf_counter() - start_time:.1f}s with {len(generated)} tokens.")
+        STATE.progress = 100
+        STATE.progress_detail = ""
+        return np.array(prompt_ids, dtype=np.int64), generated
+
     from megatron.core.inference.sampling_params import SamplingParams
     from megatron.training import get_args
 
@@ -917,6 +936,33 @@ def generate_superres_manual_projection(
 @torch.inference_mode()
 def generate_superres(superres_prompt_ids: list[int], backbone_tokens: list[int], top_k: int) -> torch.Tensor:
     """Run the superres model from q0/q1 tokens to full 64-quantizer audio tokens."""
+    if USE_VANILLA:
+        from core.khala_runtime import generate_superres_projection
+
+        model = RESOURCES["superres"]
+        if model is None:
+            raise RuntimeError("Superres (vanilla) not loaded.")
+        text_tokens = np.array(superres_prompt_ids, dtype=np.int64)
+        audio_tokens = np.array(backbone_tokens, dtype=np.int64)
+        text_len = len(text_tokens)
+        audio_len = len(audio_tokens) // 2
+        actual = text_len + audio_len
+        max_seq_len = 8192 if actual < 8192 else actual
+
+        d = prepare_superres_inputs(text_tokens, audio_tokens, max_seq_len)
+        start_time = time.perf_counter()
+        audio_output = generate_superres_projection(
+            model,
+            d["tokens"].to(DEVICE), d["attention_mask"].to(DEVICE),
+            d["loss_mask"].to(DEVICE), d["position_ids"].to(DEVICE),
+            text_len, audio_len, top_k,
+        )
+        _device_synchronize(DEVICE)
+        print(f"[Worker] Superres (vanilla) finished in {time.perf_counter() - start_time:.3f}s.")
+        for q in range(NUM_QUANTIZERS):
+            audio_output[q] -= (VQ0_START_ID + q * 1024)
+        return audio_output
+
     model = RESOURCES["superres"]
     if model is None:
         raise RuntimeError("Superres model not loaded.")
