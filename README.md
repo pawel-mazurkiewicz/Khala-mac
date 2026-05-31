@@ -52,6 +52,18 @@ English | [中文](./README_zh.md)
 > _Everything below this banner is the **upstream** project README (CUDA / Docker / NGC), kept intact for reference. The Mac-specific instructions live in the [Apple Silicon (macOS / MPS)](#apple-silicon) section._
 
 ---
+## Examples
+
+These example songs were generated entirely on Mac:
+[20260531_172623_248ecc78.mp3](https://github.com/user-attachments/files/28442283/20260531_172623_248ecc78.mp3)[20260531_171800_6ad45c1d.mp3](https://github.com/user-attachments/files/28442388/20260531_171800_6ad45c1d.mp3)
+[20260531_134548_8f22143e.mp3](https://github.com/user-attachments/files/28442319/20260531_134548_8f22143e.mp3)
+[20260531_142703_42042aaa.mp3](https://github.com/user-attachments/files/28442317/20260531_142703_42042aaa.mp3)
+
+---
+## Performance
+
+On M5 Max 16" 40c GPU with 128GB of Unified Memory it takes about ~8 minutes to generate a ~3 minute song (well, it usually is 3:48).
+---
 
 ## ✨ What Is Khala?
 
