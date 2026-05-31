@@ -1701,8 +1701,6 @@ def cli_has_flag(argv: list[str], flag: str) -> bool:
 def main() -> None:
     import sys as _sys
     import uvicorn
-    from megatron.training import get_args
-    from megatron.training.initialize import initialize_megatron
 
     global RUNTIME_MODE
 
@@ -1718,6 +1716,21 @@ def main() -> None:
 
     STATE.gpu_id = int(os.environ.get("CUDA_VISIBLE_DEVICES", "0").split(",")[0])
     STATE.seed = int(cli_value(_sys.argv, "--seed", "0") or 0)
+
+    if USE_VANILLA:
+        # Apple-Silicon / CPU path: no Megatron. Force keep_loaded so /generate uses the
+        # in-process run_generation (one_shot would spawn Megatron child processes), and
+        # preload the vanilla models so the first request is fast.
+        RUNTIME_MODE = "keep_loaded"
+        try:
+            preload_runtime()
+        except Exception as exc:
+            print(f"[Worker] WARNING: vanilla preload failed: {exc}")
+        set_status("idle")
+        set_phase("idle", 0, "")
+        print(f"[Worker] Starting (vanilla, device={DEVICE}) on http://0.0.0.0:{worker_port}")
+        uvicorn.run(app, host="0.0.0.0", port=worker_port, log_level="warning")
+        return
 
     if runtime_mode == "one_shot" and not child_once:
         set_status("idle")
@@ -1745,6 +1758,9 @@ def main() -> None:
         f"--load {first_backbone['path']} "
         f"--vocab-size {first_backbone['vocab_size']} --use-checkpoint-args"
     )
+
+    from megatron.training import get_args
+    from megatron.training.initialize import initialize_megatron
 
     initialize_megatron(
         extra_args_provider=add_worker_args,
