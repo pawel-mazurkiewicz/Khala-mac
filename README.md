@@ -52,17 +52,34 @@ English | [中文](./README_zh.md)
 > _Everything below this banner is the **upstream** project README (CUDA / Docker / NGC), kept intact for reference. The Mac-specific instructions live in the [Apple Silicon (macOS / MPS)](#apple-silicon) section._
 
 ---
-## Examples
+## 🎧 Examples — generated entirely on a Mac (Apple Silicon / MPS)
 
-These example songs were generated entirely on Mac:
-[20260531_172623_248ecc78.mp3](https://github.com/user-attachments/files/28442283/20260531_172623_248ecc78.mp3)[20260531_171800_6ad45c1d.mp3](https://github.com/user-attachments/files/28442388/20260531_171800_6ad45c1d.mp3)
-[20260531_134548_8f22143e.mp3](https://github.com/user-attachments/files/28442319/20260531_134548_8f22143e.mp3)
-[20260531_142703_42042aaa.mp3](https://github.com/user-attachments/files/28442317/20260531_142703_42042aaa.mp3)
+Real outputs from this fork running on MPS. Each clip shows a static waveform — press play to hear the music.
+
+**Sample 1 · 2:46**
+
+https://github.com/user-attachments/assets/95cc7957-242b-4656-80f9-f090f29a729f
+
+**Sample 2 · 1:48**
+
+https://github.com/user-attachments/assets/0fab2e22-c336-4bfb-87ad-06e71660ee35
+
+**Sample 3 · 1:02**
+
+https://github.com/user-attachments/assets/fac93c5c-9226-44ab-afa7-3034338d581a
+
+**Sample 4 · 2:48**
+
+https://github.com/user-attachments/assets/4f409f11-14f9-41c6-a178-e8f65d237dd6
+
+<sub>Raw audio: [1](https://github.com/user-attachments/files/28442283/20260531_172623_248ecc78.mp3) · [2](https://github.com/user-attachments/files/28442388/20260531_171800_6ad45c1d.mp3) · [3](https://github.com/user-attachments/files/28442319/20260531_134548_8f22143e.mp3) · [4](https://github.com/user-attachments/files/28442317/20260531_142703_42042aaa.mp3)</sub>
 
 ---
-## Performance
 
-On M5 Max 16" 40c GPU with 128GB of Unified Memory it takes about ~8 minutes to generate a ~3 minute song (well, it usually is 3:48).
+## ⚡ Performance
+
+On an **M5 Max** (16", 40-core GPU, 128 GB unified memory) it takes about **~8 minutes** to generate a ~3-minute song (usually ~3:48) end-to-end on this MPS path.
+
 ---
 
 ## ✨ What Is Khala?
