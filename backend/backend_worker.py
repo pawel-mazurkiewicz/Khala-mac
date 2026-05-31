@@ -127,6 +127,7 @@ CODEC_FPS = 21.5
 BACKBONE_MAX_PROMPT_LEN = 4096
 SUPERRES_MAX_PROMPT_LEN = 2048
 TOKENS_PER_MINUTE = 2584
+BACKBONE_EOD_ID = 128001  # PassThroughTokenizer eod_id; backbone stops here (parity w/ Megatron early-stop)
 DECODER_CHUNK_SIZE = 1920
 DECODER_CHUNK_OVERLAP = 480
 
@@ -803,11 +804,13 @@ def generate_backbone(prompt_ids: list[int], top_k: int, temperature: float, dur
         model = RESOURCES["backbone"]
         if model is None:
             raise RuntimeError("Backbone (vanilla) not loaded.")
+        # Duration-derived UPPER BOUND on tokens; the model stops earlier at EOS
+        # (BACKBONE_EOD_ID), mirroring the Megatron path's early-stop behavior.
         num_tokens = round(TOKENS_PER_MINUTE * (float(duration) + 0.8))
         start_time = time.perf_counter()
         generated = sample_backbone(
             model, prompt_ids, num_tokens=num_tokens,
-            temperature=float(temperature), top_k=int(top_k),
+            temperature=float(temperature), top_k=int(top_k), eos_id=BACKBONE_EOD_ID,
         )
         _device_synchronize(DEVICE)
         print(f"[Worker] Backbone (vanilla) finished in "
@@ -968,6 +971,7 @@ def generate_superres(superres_prompt_ids: list[int], backbone_tokens: list[int]
         audio_len = len(audio_tokens) // 2
         actual = text_len + audio_len
         max_seq_len = 8192 if actual < 8192 else actual
+        print(f"[Worker] Superres input: text_len={text_len}, audio_len={audio_len}, max_seq_len={max_seq_len}")
 
         d = prepare_superres_inputs(text_tokens, audio_tokens, max_seq_len)
         start_time = time.perf_counter()
