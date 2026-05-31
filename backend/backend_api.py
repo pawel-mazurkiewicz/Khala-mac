@@ -141,7 +141,7 @@ class WorkerInfo:
 WORKERS: List[WorkerInfo] = []
 _WORKER_LOCK = asyncio.Lock()
 
-NUM_TRACKS_PER_JOB = 2
+NUM_TRACKS_PER_JOB = int(os.environ.get("KHALA_TRACKS_PER_JOB", "2"))
 
 
 def _workers_needed_per_job() -> int:
