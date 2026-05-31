@@ -65,6 +65,40 @@ from core.device_utils import (  # noqa: E402  (must follow sys.path setup)
 
 DEVICE = _get_device()
 
+# Backend selection: vanilla PyTorch (MPS/CPU) vs Megatron (CUDA). Auto by device;
+# override with KHALA_BACKEND=vanilla|megatron.
+from core.device_utils import is_cuda as _is_cuda, recommended_dtype as _recommended_dtype  # noqa: E402
+
+_backend_env = os.environ.get("KHALA_BACKEND", "").strip().lower()
+if _backend_env in ("vanilla", "megatron"):
+    USE_VANILLA = _backend_env == "vanilla"
+else:
+    USE_VANILLA = not _is_cuda(DEVICE)
+
+
+def _vanilla_weights_dir() -> str:
+    return os.environ.get(
+        "KHALA_VANILLA_WEIGHTS", os.path.join(PROJECT_ROOT, "_cuda_artifacts")
+    )
+
+
+def _load_vanilla(label: str):
+    """Load a converted KhalaModel for `label` in ('backbone','superres')."""
+    from core.khala_runtime import load_vanilla_model
+
+    wd = _vanilla_weights_dir()
+    weights = os.path.join(wd, f"khala_{label}.safetensors")
+    args_json = os.path.join(wd, f"{label}_megatron_args.json")
+    for p in (weights, args_json):
+        if not os.path.exists(p):
+            raise RuntimeError(
+                f"Vanilla weights missing: {p}. Produce them with "
+                f"tools/gather_dcp.py + tools/convert_megatron_to_hf.py "
+                f"(or set KHALA_VANILLA_WEIGHTS)."
+            )
+    return load_vanilla_model(label, weights, args_json, DEVICE, _recommended_dtype(DEVICE))
+
+
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 os.makedirs(LOG_DIR, exist_ok=True)
 
@@ -442,6 +476,15 @@ def load_backbone(name: str) -> None:
     if RESOURCES["backbone_name"] == selected_name and RESOURCES["backbone"] is not None:
         return
 
+    if USE_VANILLA:
+        free_resource("backbone_engine")
+        free_resource("backbone")
+        RESOURCES["backbone"] = _load_vanilla("backbone")
+        RESOURCES["backbone_engine"] = None
+        RESOURCES["backbone_name"] = selected_name
+        print(f"[Worker] Backbone (vanilla) loaded: {selected_name}")
+        return
+
     free_resource("backbone_engine")
     free_resource("backbone")
     RESOURCES["backbone_name"] = None
@@ -483,6 +526,13 @@ def load_superres(name: str) -> None:
     """Load the super-resolution model."""
     selected_name = default_superres_name(name)
     if RESOURCES["superres_name"] == selected_name and RESOURCES["superres"] is not None:
+        return
+
+    if USE_VANILLA:
+        free_resource("superres")
+        RESOURCES["superres"] = _load_vanilla("superres")
+        RESOURCES["superres_name"] = selected_name
+        print(f"[Worker] Superres (vanilla) loaded: {selected_name}")
         return
 
     free_resource("superres")
