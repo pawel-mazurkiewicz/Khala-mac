@@ -580,6 +580,26 @@ def load_decoder() -> None:
     from dac_rvq import DacRVQ
     from omegaconf import OmegaConf
 
+    if USE_VANILLA:
+        wd = _vanilla_weights_dir()
+        cfg_path = os.path.join(wd, "decoder_config.yaml")
+        weights_path = os.path.join(wd, "decoder_weights.pt")
+        if not os.path.exists(cfg_path):
+            cfg_path = DECODER_CONFIG_PATH
+        if not os.path.exists(weights_path):
+            raise RuntimeError(
+                f"Vanilla decoder weights missing: {weights_path}. "
+                f"Produce them with tools/gather_decoder.py (or set KHALA_VANILLA_WEIGHTS)."
+            )
+        config = OmegaConf.load(cfg_path)
+        decoder = DacRVQ(config)
+        decoder.load_state_dict(torch.load(weights_path, map_location=DEVICE, weights_only=False))
+        decoder.to(DEVICE)
+        decoder.eval()
+        RESOURCES["decoder"] = decoder
+        print("[Worker] Decoder (vanilla) loaded.")
+        return
+
     config = OmegaConf.load(DECODER_CONFIG_PATH)
     decoder = DacRVQ(config)
 
