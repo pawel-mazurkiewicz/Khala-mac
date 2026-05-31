@@ -4,6 +4,8 @@
 
 # High-Fidelity Song Generation With a Unified Acoustic-Token Pipeline
 
+**🍎 Apple Silicon (MPS) fork — run Khala natively on a Mac, no NVIDIA / Docker. [Setup ↓](#apple-silicon)**
+
 English | [中文](./README_zh.md)
 
 </div>
@@ -21,6 +23,9 @@ English | [中文](./README_zh.md)
 <a href="https://huggingface.co/liujiafeng/Khala-MusicGeneration-v1.0">
   <img alt="Model Weights" src="https://img.shields.io/badge/%F0%9F%A4%97%20Model-Hugging%20Face-ffc107">
 </a>
+<a href="https://huggingface.co/Vinpolar/Khala-MusicGeneration-v1.0-MPS">
+  <img alt="Mac (MPS) Weights" src="https://img.shields.io/badge/%F0%9F%8D%8E%20Mac%20(MPS)%20Weights-Hugging%20Face-ff9e0f">
+</a>
 <a href="./ENVIRONMENT_SETUP.md">
   <img alt="Environment Setup" src="https://img.shields.io/badge/%F0%9F%9B%A0%20Environment-Setup-4c8eda">
 </a>
@@ -29,6 +34,24 @@ English | [中文](./README_zh.md)
 </a>
 
 </div>
+
+---
+
+## 🍎 About This Fork — Apple Silicon (MPS) Port
+
+> **This is a fork of [Khala](https://github.com/Khala-Music-AI/Khala) whose purpose is to run it natively on Apple Silicon.** It adds a vanilla-PyTorch, **de-Megatron** path so the full backbone → super-resolution → decoder pipeline runs on **Mac (MPS) or CPU** — with **no** NVIDIA GPU, Docker, NGC image, Megatron, TransformerEngine, or FlashAttention. It ships pre-converted weights, a Mac launcher, and a CLI generator, and its numerics match the CUDA reference (backbone greedy decode is bit-identical, 64/64 tokens).
+
+**Get started on a Mac:** 👉 **[Apple Silicon (macOS / MPS) — setup & usage](#apple-silicon)**
+
+| What | Where |
+|---|---|
+| 🍎 Mac (MPS) weights — **this fork** | [Vinpolar/Khala-MusicGeneration-v1.0-MPS](https://huggingface.co/Vinpolar/Khala-MusicGeneration-v1.0-MPS) |
+| ⬆️ Upstream project (original) | [Khala-Music-AI/Khala](https://github.com/Khala-Music-AI/Khala) |
+| ⬆️ Upstream weights (original) | [liujiafeng/Khala-MusicGeneration-v1.0](https://huggingface.co/liujiafeng/Khala-MusicGeneration-v1.0) |
+
+> _Everything below this banner is the **upstream** project README (CUDA / Docker / NGC), kept intact for reference. The Mac-specific instructions live in the [Apple Silicon (macOS / MPS)](#apple-silicon) section._
+
+---
 
 ## ✨ What Is Khala?
 
@@ -48,7 +71,7 @@ The core characteristics of Khala include:
 
 ### ✅ Updated
 
-- `[2026-05-31]` Experimental **Apple Silicon (MPS)** support: a vanilla-PyTorch (de-Megatron) inference path runs the full backbone → super-resolution → decoder pipeline on Mac (MPS or CPU), with pre-converted weights, a Mac launcher (`backend/run_backend_mac.sh`), and a CLI generator (`tools/generate_vanilla.py`). See the **Apple Silicon (macOS / MPS)** section below.
+- `[2026-05-31]` Experimental **Apple Silicon (MPS)** support: a vanilla-PyTorch (de-Megatron) inference path runs the full backbone → super-resolution → decoder pipeline on Mac (MPS or CPU), with pre-converted weights, a Mac launcher (`backend/run_backend_mac.sh`), and a CLI generator (`tools/generate_vanilla.py`). See the [Apple Silicon (macOS / MPS)](#apple-silicon) section.
 - `[2026-05-16]` The online audio demo page is now available: [Khala Demo](https://khala-music-ai.github.io/Khala-demo/)
 - `[2026-05-11]` Backend inference launch now supports single-GPU safe startup by default, plus multi-GPU and runtime-mode overrides for deployment compatibility.
 - `[2026-05-05]` The arXiv paper is now available: [Khala: Scaling Acoustic Token Language Models Toward High-Fidelity Music Generation](https://arxiv.org/abs/2605.01790)
@@ -79,7 +102,7 @@ The current release is mainly intended for researchers and developers who are al
 - Python and Node.js are already included in the prebuilt image.
 - Model weights need to be downloaded into the `checkpoints/` directory at the repository root.
 
-> 🍎 **On a Mac?** You do **not** need an NVIDIA GPU, Docker, or the NGC image. See the **🍎 Apple Silicon (macOS / MPS)** section below for the vanilla-PyTorch path.
+> 🍎 **On a Mac?** You do **not** need an NVIDIA GPU, Docker, or the NGC image. See the [🍎 Apple Silicon (macOS / MPS)](#apple-silicon) section for the vanilla-PyTorch path.
 
 ## 🚀 Quick Start
 
@@ -155,6 +178,8 @@ npm run dev
 Default URL:
 
 - [http://127.0.0.1:30869](http://127.0.0.1:30869)
+
+<a id="apple-silicon"></a>
 
 ## 🍎 Apple Silicon (macOS / MPS)
 
