@@ -54,7 +54,7 @@ def sample_backbone(model: KhalaModel, prompt_ids, num_tokens: int,
     logits = model.lm_head(h[:, -1])[0, :V].float()
 
     out: list[int] = []
-    for _ in range(int(num_tokens)):
+    for step_i in range(int(num_tokens)):
         nxt = _select_token(logits, temperature, top_k)
         if eos_id is not None and nxt == eos_id:
             break  # EOS is a control token, not audio — exclude it from the q0/q1 stream
@@ -62,6 +62,12 @@ def sample_backbone(model: KhalaModel, prompt_ids, num_tokens: int,
         step = torch.tensor([[nxt]], dtype=torch.long, device=device)
         h = model.forward_hidden_states(step, causal=True, kv_cache=cache)
         logits = model.lm_head(h[:, -1])[0, :V].float()
+        # The KV cache grows by one each step and attention re-materializes the
+        # GQA-expanded K/V at the new length. On MPS the caching allocator hoards every
+        # freed (ever-larger) buffer -> ~O(S^2) cached memory over a long decode (e.g.
+        # ~73GB at 7k tokens). Periodically return it so memory stays bounded.
+        if (step_i & 63) == 63:
+            _empty_cache(device)
     return out
 
 
