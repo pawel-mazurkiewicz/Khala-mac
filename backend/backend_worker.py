@@ -974,7 +974,12 @@ def generate_superres(superres_prompt_ids: list[int], backbone_tokens: list[int]
         text_len = len(text_tokens)
         audio_len = len(audio_tokens) // 2
         actual = text_len + audio_len
-        max_seq_len = 8192 if actual < 8192 else actual
+        # Size to the ACTUAL sequence, NOT the 8192 training floor. Super-res is non-causal
+        # with a padding mask, so masked pad positions don't affect valid outputs — padding
+        # to 8192 is pure waste. On MPS that waste is catastrophic: SDPA has no FlashAttention
+        # fallback, so attention is O(S^2) memory (8192^2 per head materialized) vs CUDA's
+        # O(S) flash-attn (hence "48GB VRAM" upstream). The CUDA/Megatron path keeps its floor.
+        max_seq_len = actual
         print(f"[Worker] Superres input: text_len={text_len}, audio_len={audio_len}, max_seq_len={max_seq_len}")
 
         d = prepare_superres_inputs(text_tokens, audio_tokens, max_seq_len)

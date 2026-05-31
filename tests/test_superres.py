@@ -89,7 +89,38 @@ def test_superres_projection_runs():
     print(f"  superres_projection out.shape={tuple(out.shape)} PASS")
 
 
+def test_superres_padding_invariance():
+    """Fix-1 correctness basis: a non-causal forward at the ACTUAL length must equal the
+    same forward padded with masked pad rows, on the valid region. This is why dropping the
+    8192 pad floor (max_seq_len = actual) is output-preserving on the real super-res model."""
+    A = artifacts_dir()
+    if not (A / "khala_superres.safetensors").exists():
+        print("  SKIP superres padding-invariance (weights absent)")
+        return
+    model = _load_superres()
+    torch.manual_seed(0)
+    N, C, P = 16, 4, 24
+    ids = torch.randint(0, 1000, (1, N, C))
+    pad = torch.full((1, P, C), PAD_TOKEN_ID, dtype=torch.long)
+    ids_p = torch.cat([ids, pad], dim=1)
+
+    mask_a = torch.zeros(1, 1, 1, N, dtype=torch.bool)               # actual: attend all
+    mask_p = torch.zeros(1, 1, 1, N + P, dtype=torch.bool)
+    mask_p[..., N:] = True                                           # padded: mask pad rows
+    pos_a = torch.arange(N)[None]
+    pos_p = torch.arange(N + P)[None]
+
+    with torch.no_grad():
+        h_a = model.forward_hidden_states(ids, causal=False, position_ids=pos_a, attention_mask=mask_a)
+        h_p = model.forward_hidden_states(ids_p, causal=False, position_ids=pos_p, attention_mask=mask_p)
+    c = cos(h_a, h_p[:, :N])
+    print(f"  superres_padding_invariance cos={c:.6f} (actual-len vs padded, valid region)")
+    assert c > 0.9999, f"actual-length vs padded diverged: cos={c}"
+    print("  test_superres_padding_invariance PASS")
+
+
 if __name__ == "__main__":
     test_superres_forward_trace()
     test_superres_projection_runs()
+    test_superres_padding_invariance()
     print("ALL PASS")

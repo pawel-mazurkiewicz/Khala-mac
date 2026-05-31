@@ -9,6 +9,7 @@ from safetensors.torch import load_file
 
 from .khala_config import KhalaConfig
 from .khala_model import KhalaModel, KhalaKVCache
+from .device_utils import empty_cache as _empty_cache
 
 # Super-res token-space constants (mirror backend_worker).
 PAD_TOKEN_ID = -1
@@ -78,6 +79,7 @@ def generate_superres_projection(model: KhalaModel, tokens: torch.Tensor,
                         device=tokens.device, dtype=tokens.dtype)
     final[..., :2] = tokens[..., :2]
     output_weight = model.lm_head.weight
+    device = next(model.parameters()).device
 
     for idx in range(2, NUM_QUANTIZERS):
         final[:, text_len - 1, 0] = TASK0_MARKER - idx
@@ -99,6 +101,12 @@ def generate_superres_projection(model: KhalaModel, tokens: torch.Tensor,
         sampled = torch.gather(top_indices, -1, sampled_in_topk.unsqueeze(-1)).squeeze(-1) + min_id
         sampled = torch.where(loss_mask.bool(), sampled, PAD_TOKEN_ID)
         final[..., idx] = sampled
+
+        # Release the per-quantizer attention/projection tensors before the next iteration.
+        # On MPS the caching allocator otherwise holds the O(S^2) attention high-water mark
+        # across all 62 passes; empty_cache returns it so memory stays bounded.
+        del hidden, logits, top_values, top_indices, probs, q, sampled_in_topk, sampled
+        _empty_cache(device)
 
     audio = final[:, text_len:text_len + audio_len, :]
     return audio.permute(2, 0, 1).clone()
