@@ -48,6 +48,7 @@ The core characteristics of Khala include:
 
 ### ✅ Updated
 
+- `[2026-05-31]` Experimental **Apple Silicon (MPS)** support: a vanilla-PyTorch (de-Megatron) inference path runs the full backbone → super-resolution → decoder pipeline on Mac (MPS or CPU), with pre-converted weights, a Mac launcher (`backend/run_backend_mac.sh`), and a CLI generator (`tools/generate_vanilla.py`). See the **Apple Silicon (macOS / MPS)** section below.
 - `[2026-05-16]` The online audio demo page is now available: [Khala Demo](https://khala-music-ai.github.io/Khala-demo/)
 - `[2026-05-11]` Backend inference launch now supports single-GPU safe startup by default, plus multi-GPU and runtime-mode overrides for deployment compatibility.
 - `[2026-05-05]` The arXiv paper is now available: [Khala: Scaling Acoustic Token Language Models Toward High-Fidelity Music Generation](https://arxiv.org/abs/2605.01790)
@@ -77,6 +78,8 @@ The current release is mainly intended for researchers and developers who are al
 - A CUDA-compatible NVIDIA driver.
 - Python and Node.js are already included in the prebuilt image.
 - Model weights need to be downloaded into the `checkpoints/` directory at the repository root.
+
+> 🍎 **On a Mac?** You do **not** need an NVIDIA GPU, Docker, or the NGC image. See the **🍎 Apple Silicon (macOS / MPS)** section below for the vanilla-PyTorch path.
 
 ## 🚀 Quick Start
 
@@ -152,6 +155,63 @@ npm run dev
 Default URL:
 
 - [http://127.0.0.1:30869](http://127.0.0.1:30869)
+
+## 🍎 Apple Silicon (macOS / MPS)
+
+A vanilla-PyTorch, **de-Megatron** port runs the full pipeline (backbone → super-resolution → decoder) on **Apple Silicon (MPS) or CPU** — no Docker, NGC, Megatron, TransformerEngine, or FlashAttention. It is selected at runtime via `KHALA_BACKEND=vanilla`; the CUDA/Megatron path is left untouched. Numerics match the CUDA reference (backbone greedy decode is bit-identical, 64/64 tokens).
+
+> Status: experimental but end-to-end working — it produces coherent, audible music on MPS.
+
+### Requirements
+
+- Apple Silicon Mac (M1 or newer); also runs on CPU.
+- A Python virtualenv with `requirements-mac.txt` (pins `torch >= 2.4` for a stable MPS backend). No CUDA stack.
+- ~8 GB of unified memory resident for the three models; generation peak is bounded (see [MPS notes](#notes-mps-specifics)).
+
+### 1. Environment
+
+```bash
+python3 -m venv .venv-mac
+.venv-mac/bin/pip install -r requirements-mac.txt
+```
+
+### 2. Weights (pre-converted)
+
+Download the pre-converted MPS weights into `_cuda_artifacts/` (or any directory you point `KHALA_VANILLA_WEIGHTS` at):
+
+```bash
+.venv-mac/bin/hf download Vinpolar/Khala-MusicGeneration-v1.0-MPS --local-dir _cuda_artifacts
+```
+
+This provides six files: `khala_backbone.safetensors`, `khala_superres.safetensors`, `decoder_weights.pt`, plus `backbone_megatron_args.json`, `superres_megatron_args.json`, and `decoder_config.yaml`.
+
+Prefer to convert them yourself from the original checkpoints? See [`tools/GATHER_RUNBOOK.md`](./tools/GATHER_RUNBOOK.md) — weight extraction is torch-only and needs no NGC image.
+
+### 3a. Generate from the command line
+
+```bash
+KHALA_BACKEND=vanilla .venv-mac/bin/python -u tools/generate_vanilla.py --help
+KHALA_BACKEND=vanilla .venv-mac/bin/python -u tools/generate_vanilla.py \
+    --duration 3 --tags "upbeat, pop, piano, driving drums"
+```
+
+`--duration` is in **minutes**; terse comma-separated `--tags` are on-distribution (the model was trained on tag-style metadata, so tags tend to beat free-form sentences). Run with `--help` for all options and examples.
+
+### 3b. Or run the web UI
+
+```bash
+bash backend/run_backend_mac.sh          # MPS (use --device cpu to force CPU)
+# then, in another terminal:
+cd frontend && npm install && npm run dev   # open the printed localhost URL
+```
+
+The launcher starts one `keep_loaded` worker (`:8001`) plus the API gateway (`:8889`) with `KHALA_TRACKS_PER_JOB=1`. Stop it with `kill $(cat backend/logs/mac_pids.txt)`.
+
+### Notes (MPS specifics)
+
+- **No FlashAttention on MPS** → `scaled_dot_product_attention` runs the math path = O(S²) memory. The super-resolution attention is instead computed as an exact, **query-chunked** `matmul → softmax → matmul` (block size via `KHALA_ATTN_BLOCK`, default 512), keeping the forward memory flat (≈ 22 GB → ≈ 1 GB at the 8192 ceiling) with bit-exact output. Backbone decoding periodically frees the MPS cache, and super-res is sized to the actual sequence length rather than the training floor.
+- **Precision:** fp16 on MPS, fp32 on CPU. The upstream 2026-05-07 precision notice corresponds to a SwiGLU double-bias detail; the port defaults to matching the trained weights (`swiglu_double_bias=True`).
+- **Known UI quirk:** the SPA currently burns CPU/GPU while idle-polling during a job (minimizing the browser tab mitigates it); a fix is pending.
 
 ## 🧠 System Overview
 
