@@ -967,6 +967,10 @@ def generate_superres(superres_prompt_ids: list[int], backbone_tokens: list[int]
             raise RuntimeError("Superres (vanilla) not loaded.")
         text_tokens = np.array(superres_prompt_ids, dtype=np.int64)
         audio_tokens = np.array(backbone_tokens, dtype=np.int64)
+        # Super-res consumes interleaved q0/q1 pairs; drop a stray trailing token so an
+        # odd count (e.g. EOS-terminated generation) can't crash reshape(-1, 2).
+        if audio_tokens.size % 2:
+            audio_tokens = audio_tokens[:-1]
         text_len = len(text_tokens)
         audio_len = len(audio_tokens) // 2
         actual = text_len + audio_len

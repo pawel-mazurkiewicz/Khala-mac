@@ -55,9 +55,9 @@ def sample_backbone(model: KhalaModel, prompt_ids, num_tokens: int,
     out: list[int] = []
     for _ in range(int(num_tokens)):
         nxt = _select_token(logits, temperature, top_k)
-        out.append(nxt)
         if eos_id is not None and nxt == eos_id:
-            break
+            break  # EOS is a control token, not audio — exclude it from the q0/q1 stream
+        out.append(nxt)
         step = torch.tensor([[nxt]], dtype=torch.long, device=device)
         h = model.forward_hidden_states(step, causal=True, kv_cache=cache)
         logits = model.lm_head(h[:, -1])[0, :V].float()
